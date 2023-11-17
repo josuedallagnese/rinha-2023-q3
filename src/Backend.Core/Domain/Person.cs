@@ -1,4 +1,4 @@
-﻿namespace Backend.Web.Domain
+﻿namespace Backend.Core.Domain
 {
     public record Person(string NickName, string Name, DateOnly BirthDate, IEnumerable<string> Stack, string Stacks)
     {

@@ -3,7 +3,7 @@ using StackExchange.Redis;
 
 namespace Backend.Core.PubSub
 {
-    public class RedisBroadcastService : IBroadcastService
+    public class BroadcastService
     {
         private readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
@@ -11,7 +11,7 @@ namespace Backend.Core.PubSub
         private readonly IConnectionMultiplexer _connectionMultiplexer;
         private readonly ISubscriber _subscriber;
 
-        public RedisBroadcastService(IConnectionMultiplexer connectionMultiplexer, string channel)
+        public BroadcastService(IConnectionMultiplexer connectionMultiplexer, string channel)
         {
             _channel = new RedisChannel(channel, RedisChannel.PatternMode.Auto);
             _connectionMultiplexer = connectionMultiplexer;

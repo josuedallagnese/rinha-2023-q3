@@ -1,9 +1,11 @@
 ﻿using Backend.Core;
+using Backend.Core.Domain;
+using Backend.Core.Infra;
+using Backend.Core.Models;
 using Backend.Core.PubSub;
-using Backend.Web.Domain;
-using Backend.Web.Infra;
 using Backend.Web.Models;
 using Microsoft.Extensions.Caching.Memory;
+using System.Collections.Concurrent;
 using System.Threading.Channels;
 
 namespace Backend.Web
@@ -18,11 +20,13 @@ namespace Backend.Web
                 app.UseSwaggerUI();
             }
 
-            await MapPost(app);
+            MapPost(app);
             MapGet(app);
             MapGetAll(app);
             MapCount(app);
             MapThreadCount(app);
+
+            await SubscribeAddPersonEvent(app);
         }
 
         private static void MapThreadCount(WebApplication app)
@@ -44,70 +48,70 @@ namespace Backend.Web
 
         private static void MapCount(WebApplication app)
         {
-            app.MapGet("/contagem-pessoas", async (HttpContext http, ReadRepository repository) =>
+            app.MapGet("/contagem-pessoas", async (HttpContext http, ConcurrentBag<Person> buffer, Repository repository) =>
             {
-                var total = await repository.Count();
+                if (!buffer.IsEmpty)
+                {
+                    await repository.Insert(buffer);
 
-                return total;
+                    buffer.Clear();
+                }
+
+                return await repository.Count();
             }).Produces<long>();
         }
 
         private static void MapGetAll(WebApplication app)
         {
-            app.MapGet("/pessoas", async (HttpContext http, ReadRepository repository, string t) =>
+            app.MapGet("/pessoas", async (HttpContext http, Repository repository, string t) =>
             {
                 if (string.IsNullOrEmpty(t))
                     return Results.BadRequest();
 
-                var pessoas = await repository.GetAll(t);
+                var response = await repository.GetAll(t);
 
-                return Results.Ok(pessoas);
+                return Results.Ok(response);
 
             }).Produces<IEnumerable<PersonRequest>>();
         }
 
         private static void MapGet(WebApplication app)
         {
-            app.MapGet("/pessoas/{id}", async (HttpContext http, ReadRepository repository, IMemoryCache cache, Guid id) =>
+            app.MapGet("/pessoas/{id}", async (HttpContext http, Repository repository, IMemoryCache cache, Guid id, AppConfiguration appConfiguration) =>
             {
-                var personRequest = cache.Get<PersonRequest>(id);
-                if (personRequest != null)
-                {
-                    return Results.Ok(personRequest);
-                }
+                // primeira tentativa de verificação no cache
+                var response = cache.Get<PersonRequest>(id);
+                if (response != null)
+                    return Results.Ok(response);
 
-                personRequest = await repository.Get(id);
-                if (personRequest == null)
+                // se ainda não sincronizou, gera a compensação e espera
+                await Task.Delay(appConfiguration.CacheReplicationCompensation);
+
+                // segunda tentativa de verificação no cache
+                response = cache.Get<PersonRequest>(id);
+                if (response != null)
+                    return Results.Ok(response);
+
+                response = await repository.Get(id);
+                if (response == null)
                     return Results.NotFound();
 
-                return Results.Ok(personRequest);
+                return Results.Ok(response);
 
             }).Produces<PersonRequest>();
         }
 
-        private static async Task MapPost(WebApplication app)
+        private static void MapPost(WebApplication app)
         {
-            var broadcastService = app.Services.GetRequiredService<IBroadcastService>();
-            var cache = app.Services.GetRequiredService<IMemoryCache>();
-
-            Action<PersonRequest> updateCache = (request) =>
-            {
-                // A chave usando o id verifica a existência no endpoint de pessoas/{id}
-                cache.Set(request.Id, request);
-
-                // A chave usando apelido verifica a existência neste mesmo endpoint.
-                cache.Set(request.NickName, request);
-            };
-
-            app.MapPost("/pessoas", async (HttpContext http, Channel<Person> channel, NewPersonRequest request, AppConfiguration appConfiguration) =>
+            app.MapPost("/pessoas", async (HttpContext http, Channel<Person> channel, NewPersonRequest request, IMemoryCache cache, BroadcastService broadcastService) =>
             {
                 // Não atende aos criterios de validação basica? 422
                 if (request == null || !request.Validate())
                     return Results.UnprocessableEntity();
 
                 // Já existe em cache? 422
-                var cacheValue = cache.Get<PersonRequest>(request.Apelido);
-                if (cacheValue != null)
+                var response = cache.Get<PersonRequest>(request.Apelido);
+                if (response != null)
                     return Results.UnprocessableEntity();
 
                 var entity = new Person(
@@ -116,7 +120,9 @@ namespace Backend.Web
                     request.DataNascimento,
                     request.Stack);
 
-                cacheValue = new PersonRequest()
+                await channel.Writer.WriteAsync(entity);
+
+                response = new PersonRequest()
                 {
                     Id = entity.Id,
                     NickName = request.Apelido,
@@ -125,20 +131,26 @@ namespace Backend.Web
                     Stack = request.Stack
                 };
 
-                await broadcastService.Propagate(cacheValue);
+                cache.Set(response.Id, response);
+                cache.Set(response.NickName, response);
 
-                await channel.Writer.WriteAsync(entity);
+                await broadcastService.Propagate(response);
 
-                updateCache(cacheValue);
+                return Results.Created($"/pessoas/{entity.Id}", response);
 
-                // Gera uma compensação para a replicação entre instâncias
-                await Task.Delay(appConfiguration.CacheReplicationCompensation);
+            }).Produces<PersonRequest>();
+        }
 
-                return Results.Created($"/pessoas/{entity.Id}", request);
+        private static async Task SubscribeAddPersonEvent(WebApplication app)
+        {
+            var broadcastService = app.Services.GetRequiredService<BroadcastService>();
+            var cache = app.Services.GetRequiredService<IMemoryCache>();
 
-            }).Produces<NewPersonRequest>();
-
-            await broadcastService.Receive(updateCache);
+            await broadcastService.Receive<PersonRequest>((personRequest) =>
+            {
+                cache.Set(personRequest.Id, personRequest);
+                cache.Set(personRequest.NickName, personRequest);
+            });
         }
     }
 }

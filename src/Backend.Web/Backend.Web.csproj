@@ -1,18 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Backend.Web</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.ConcurrencyLimiter" Version="7.0.13" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.12" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="7.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
     <PackageReference Include="Npgsql" Version="7.0.6" />
     <PackageReference Include="Npgsql.DependencyInjection" Version="7.0.6" />
-    <PackageReference Include="StackExchange.Redis" Version="2.6.122" />
+    <PackageReference Include="StackExchange.Redis" Version="2.7.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>
 

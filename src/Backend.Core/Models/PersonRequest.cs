@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Backend.Web.Models
+namespace Backend.Core.Models
 {
     public class PersonRequest
     {

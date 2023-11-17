@@ -1,25 +1,42 @@
-﻿using Backend.Core.Repositories;
-using Backend.Web.Domain;
-using Backend.Web.Models;
+﻿using System.Data;
+using Backend.Core.Domain;
+using Backend.Core.Models;
 using Npgsql;
-using System.Data;
+using NpgsqlTypes;
 
-namespace Backend.Web.Infra
+namespace Backend.Core.Infra
 {
-    public class ReadRepository : RepositoryBase<NpgsqlConnection>
+    public class Repository(NpgsqlConnection connection) : RepositoryBase(connection)
     {
-        public ReadRepository(NpgsqlConnection connection)
-            : base(connection)
+        public async Task Insert(IEnumerable<Person> people)
         {
+            using var batch = await CreateBatch();
+
+            foreach (var person in people)
+            {
+                var command = batch.CreateBatchCommand();
+
+                command.CommandText = Queries.Insert;
+                command.Parameters.AddWithValue(person.Id);
+                command.Parameters.AddWithValue(person.NickName);
+                command.Parameters.AddWithValue(person.Name);
+                command.Parameters.AddWithValue(person.BirthDate);
+                command.Parameters.AddWithValue(person.Stacks);
+                command.Parameters.AddWithValue(person.Search);
+
+                batch.BatchCommands.Add(command);
+            }
+
+            await batch.ExecuteNonQueryAsync();
         }
 
         public async Task<PersonRequest> Get(Guid id)
         {
-            await Connection.OpenAsync();
+            using var command = await CreateCommand();
 
-            using var command = new NpgsqlCommand(Queries.Get, Connection);
+            command.CommandText = Queries.Get;
 
-            var parameter = command.Parameters.AddWithValue(nameof(id), id);
+            var parameter = command.Parameters.AddWithValue(nameof(id), NpgsqlDbType.Uuid, id);
 
             using var reader = await command.ExecuteReaderAsync();
 
@@ -35,9 +52,9 @@ namespace Backend.Web.Infra
 
         public async Task<IEnumerable<PersonRequest>> GetAll(string t)
         {
-            await Connection.OpenAsync();
+            using var command = await CreateCommand();
 
-            using var command = new NpgsqlCommand(Queries.GetAll, Connection);
+            command.CommandText = Queries.GetAll;
 
             var parameter = command.Parameters.AddWithValue(nameof(t), $"%{t}%");
 
@@ -59,9 +76,9 @@ namespace Backend.Web.Infra
 
         public async Task<long> Count()
         {
-            await Connection.OpenAsync();
+            using var command = await CreateCommand();
 
-            using var command = new NpgsqlCommand(Queries.Count, Connection);
+            command.CommandText = Queries.Count;
 
             var count = (long)await command.ExecuteScalarAsync();
 

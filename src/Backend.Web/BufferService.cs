@@ -1,51 +1,56 @@
 ﻿using System.Collections.Concurrent;
-using Backend.Web.Domain;
-using Backend.Web.Infra;
+using System.Threading.Channels;
+using Backend.Core.Domain;
+using Backend.Core.Infra;
 
-namespace Backend.Web.Services
+namespace Backend.Web
 {
-    public class BufferExpirationService : BackgroundService
+    public class BufferService : BackgroundService
     {
+        private readonly Channel<Person> _channel;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly AppConfiguration _appConfiguration;
+        private readonly ConcurrentBag<Person> _buffer;
         private readonly ILogger<BufferService> _logger;
 
-        public BufferExpirationService(
+        public BufferService(
+            Channel<Person> channel,
             IServiceScopeFactory serviceScopeFactory,
             AppConfiguration appConfiguration,
+            ConcurrentBag<Person> buffer,
             ILogger<BufferService> logger)
         {
+            _channel = channel;
             _serviceScopeFactory = serviceScopeFactory;
             _appConfiguration = appConfiguration;
+            _buffer = buffer;
             _logger = logger;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var bufferExpiration = _appConfiguration.BufferExpiration;
+            var bufferSize = _appConfiguration.BufferSize;
 
-            using var timer = new PeriodicTimer(bufferExpiration);
-
-            while (await timer.WaitForNextTickAsync(stoppingToken))
+            await foreach (var item in _channel.Reader.ReadAllAsync(stoppingToken))
             {
+                _buffer.Add(item);
+
+                if (_buffer.Count < bufferSize)
+                    continue;
+
                 try
                 {
                     using var scope = _serviceScopeFactory.CreateScope();
 
-                    var buffer = scope.ServiceProvider.GetRequiredService<ConcurrentBag<Person>>();
-
-                    if (buffer.IsEmpty)
-                        continue;
-
                     var repository = scope.ServiceProvider.GetRequiredService<Repository>();
 
-                    await repository.Insert(buffer);
+                    await repository.Insert(_buffer);
 
-                    buffer.Clear();
+                    _buffer.Clear();
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Controle expiração buffer");
+                    _logger.LogError(ex, "Processamento do buffer");
                 }
             }
         }

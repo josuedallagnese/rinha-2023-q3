@@ -1,7 +1,6 @@
-﻿using Backend.Core.PubSub;
-using Backend.Web.Domain;
-using Backend.Web.Infra;
-using Backend.Web.Services;
+﻿using Backend.Core.Domain;
+using Backend.Core.Infra;
+using Backend.Core.PubSub;
 using StackExchange.Redis;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
@@ -21,24 +20,21 @@ namespace Backend.Web
             builder.Services.AddNpgsqlDataSource(appConfiguration.Npgsql);
 
             builder.Services.AddScoped<Repository>();
-            builder.Services.AddScoped<ReadRepository>();
-
             builder.Services.AddSingleton(_ => Channel.CreateUnbounded<Person>(new UnboundedChannelOptions
             {
                 SingleReader = true
             }));
 
             builder.Services.AddHostedService<BufferService>();
-            builder.Services.AddHostedService<BufferExpirationService>();
             builder.Services.AddSingleton<ConcurrentBag<Person>>();
 
             builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(appConfiguration.Redis));
             builder.Services.AddMemoryCache();
-            builder.Services.AddSingleton<IBroadcastService>(sp =>
+            builder.Services.AddSingleton(sp =>
             {
                 var connectionMultiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
 
-                return new RedisBroadcastService(connectionMultiplexer, "people-channel");
+                return new BroadcastService(connectionMultiplexer, "people-channel");
             });
 
             if (builder.Environment.IsDevelopment())

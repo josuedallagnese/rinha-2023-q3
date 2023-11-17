@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS public.people (
 	name VARCHAR(100) NOT NULL,
 	birthdate DATE NOT NULL,
 	stack VARCHAR(1024),
-	search VARCHAR(1156)
+	search TEXT NOT NULL
 );
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stack_fulltext ON public.people USING GIST (search GIST_TRGM_OPS);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_stack_fulltext ON public.people USING GIST (search GIST_TRGM_OPS(SIGLEN=64));

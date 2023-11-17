@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
+using Backend.Core.Domain;
 using Backend.Core.Validations;
-using Backend.Web.Domain;
 
 namespace Backend.Web.Models
 {

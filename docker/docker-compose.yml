@@ -39,9 +39,9 @@ services:
       - ConnectionStrings__Npgsql=Host=localhost;Username=admin;Password=123;Database=rinha;
       - ConnectionStrings__Redis=localhost:6379,abortConnect=false
       # - ASPNETCORE_ENVIRONMENT=Development
-      - Concurrency__BufferSize=20
+      - Concurrency__BufferSize=15
       - Concurrency__BufferExpirationMilliseconds=5000
-      - Concurrency__CacheReplicationCompensationMilliseconds=800
+      - Concurrency__CacheReplicationCompensationMilliseconds=500
       - ASPNETCORE_URLS=http://+:8081
     network_mode: host
     deploy:
@@ -60,9 +60,9 @@ services:
       - ConnectionStrings__Npgsql=Host=localhost;Username=admin;Password=123;Database=rinha;
       - ConnectionStrings__Redis=localhost:6379,abortConnect=false
       # - ASPNETCORE_ENVIRONMENT=Development
-      - Concurrency__BufferSize=20
+      - Concurrency__BufferSize=15
       - Concurrency__BufferExpirationMilliseconds=5000
-      - Concurrency__CacheReplicationCompensationMilliseconds=800
+      - Concurrency__CacheReplicationCompensationMilliseconds=500
       - ASPNETCORE_URLS=http://+:8082
     network_mode: host
     deploy:
